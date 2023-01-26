@@ -32,7 +32,7 @@ let notes = [
     number: '39-23-6423122'
   }
 ]
-
+// get
 app.get('/info', (request, response) => {
   const date = new Date(Date.now()).toUTCString()
   response.send(
