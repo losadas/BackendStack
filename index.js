@@ -1,6 +1,10 @@
+require('dotenv').config()
+const { connect, mongoose } = require('./db')
+const Note = require('./models/Note')
 const express = require('express')
 const morgan = require('morgan')
 const cors = require('cors')
+
 const app = express()
 
 app.use(cors())
@@ -36,8 +40,14 @@ app.get('/info', (request, response) => {
   )
 })
 
-app.get('/api/persons', (request, response) => {
-  response.json(notes)
+app.get('/api/persons', morgan('tiny'), (request, response) => {
+  connect()
+  Note.find({}).then(res => {
+    response.json(res)
+    mongoose.connection.close()
+  }).catch(err => {
+    console.log(err)
+  })
 })
 
 app.get('/api/persons/:id', (request, response) => {
@@ -101,6 +111,18 @@ app.post(
   }
 )
 
+app.put('/api/persons/:id', (request, response) => {
+  const note = request.body
+  const i = notes.findIndex(element => element.name === note.name)
+  const newNote = {
+    id: notes[i].id,
+    name: `${note.name}`,
+    number: note.number
+  }
+  notes[i] = newNote
+  response.status(200)
+})
+
 // middleware para rutas inexistentes se agrega después de todas las rutas
 const unknownEndpoint = (request, response) => {
   response.status(404).send({ error: 'unknown endpoint' })
@@ -108,7 +130,7 @@ const unknownEndpoint = (request, response) => {
 
 app.use(unknownEndpoint)
 
-const PORT = 3001
+const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
 })
