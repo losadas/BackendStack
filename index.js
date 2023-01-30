@@ -10,64 +10,51 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
-let notes = [
-  {
-    id: 1,
-    name: 'Arto Hellas',
-    number: '040-123456'
-  },
-  {
-    id: 2,
-    name: 'Ada Lovelance',
-    number: '39-44-5323523'
-  },
-  {
-    id: 3,
-    name: 'Dan Abramov',
-    number: '12-43-234345'
-  },
-  {
-    id: 4,
-    name: 'Mary Poppendick',
-    number: '39-23-6423122'
-  }
-]
 // get
-app.get('/info', (request, response) => {
+app.get('/info', morgan('tiny'), async (request, response) => {
+  await connect()
+  const length = Note.find({}).then(res => {
+    mongoose.connection.close(() => {
+      console.log('Closed Connection', mongoose.connection.readyState)
+    })
+    return res
+  })
   const date = new Date(Date.now()).toUTCString()
   response.send(
-    `<h2>Phonebook has info for ${notes.length} people</h2> <h2>${date}</h2>`
+    `<h2>Phonebook has info for ${(await length).length} people</h2> <h2>${date}</h2>`
   )
 })
 
-app.get('/api/persons', morgan('tiny'), (request, response) => {
-  connect()
+app.get('/api/persons', morgan('tiny'), async (request, response) => {
+  await connect()
   Note.find({}).then(res => {
     response.json(res)
-    mongoose.connection.close()
-  }).catch(err => {
-    console.log(err)
+    mongoose.connection.close(() => {
+      console.log('Closed Connection', mongoose.connection.readyState)
+    })
   })
 })
 
-app.get('/api/persons/:id', (request, response) => {
-  const id = Number(request.params.id)
-  const note = notes.find((element) => element.id === id)
-  if (note) {
-    response.json(note)
-  } else {
-    response.status(404).send('404 Not found')
-  }
+app.get('/api/persons/:id', morgan('tiny'), async (request, response) => {
+  await connect()
+  const id = request.params.id
+  Note.findById(id).then(res => {
+    response.json(res)
+    mongoose.connection.close(() => {
+      console.log('Closed Connection', mongoose.connection.readyState)
+    })
+  })
 })
 
-app.delete('/api/persons/:id', (request, response) => {
-  const id = Number(request.params.id)
-  notes = notes.filter((element) => element.id !== id)
-  if (notes) {
-    response.json(notes)
-  } else {
-    response.status(404).send('404 Not found')
-  }
+app.delete('/api/persons/:id', morgan('tiny'), async (request, response) => {
+  await connect()
+  const id = request.params.id
+  Note.findByIdAndDelete(id).then(res => {
+    response.json(res)
+    mongoose.connection.close(() => {
+      console.log('Closed Connection', mongoose.connection.readyState)
+    })
+  })
 })
 
 app.post(
@@ -87,40 +74,25 @@ app.post(
       tokens.content(req, res)
     ].join(' ')
   }),
-  (request, response) => {
-    const note = request.body
-    const correct = note.name && note.number
-    if (correct) {
-      const correct2 = notes.some((element) => element.name === note.name)
-      if (!correct2) {
-        const ids = notes.map((note) => note.id)
-        const maxId = Math.max(...ids)
-        const newNote = {
-          id: maxId + 1,
-          name: note.name,
-          number: note.number
-        }
-        notes = [...notes, newNote]
-        response.json(newNote)
-      } else {
-        response.status(409).send('Ya existe un usuario con este nombre')
-      }
-    } else {
-      response.status(400).send('400 Bad Request')
-    }
+  async (request, response) => {
+    await connect()
+    const note = new Note(request.body)
+    note.save().then(res => {
+      response.json(res)
+      mongoose.connection.close(() => {
+        console.log('Closed Connection', mongoose.connection.readyState)
+      })
+    }).catch(err => console.log(err))
   }
 )
 
-app.put('/api/persons/:id', (request, response) => {
+app.put('/api/persons/:id', async (request, response) => {
+  await connect()
   const note = request.body
-  const i = notes.findIndex(element => element.name === note.name)
-  const newNote = {
-    id: notes[i].id,
-    name: `${note.name}`,
-    number: note.number
-  }
-  notes[i] = newNote
-  response.status(200)
+  Note.findOneAndUpdate({ name: note.name }, { number: note.number }).then(() => {
+    console.log('Actualizado')
+    response.end()
+  }).catch(err => console.log(err))
 })
 
 // middleware para rutas inexistentes se agrega después de todas las rutas
