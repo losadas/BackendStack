@@ -1,14 +1,17 @@
 const { model, Schema } = require('mongoose')
-const noteSchema = new Schema({
-  name: {
-    type: String,
-    required: true
+const noteSchema = new Schema(
+  {
+    name: {
+      type: String,
+      required: true
+    },
+    number: {
+      type: String,
+      required: true
+    }
   },
-  number: {
-    type: String,
-    required: true
-  }
-}, { versionKey: false })
+  { versionKey: false }
+)
 
 noteSchema.set('toJSON', {
   transform: (document, returnedObject) => {
