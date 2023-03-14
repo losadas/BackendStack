@@ -1,6 +1,6 @@
 const mongoose = require('mongoose')
-
-const connectionString = process.env.URI
+const { URI, URI_TEST, NODE_ENV } = process.env
+const connectionString = NODE_ENV === 'test' ? URI_TEST : URI
 
 const connect = async () => {
   try {

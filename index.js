@@ -13,63 +13,61 @@ app.use(cors())
 app.use(express.json())
 
 // get
-app.get('/info', morgan('tiny'), async (request, response) => {
-  await connect()
-  const length = Note.find({}).then((res) => {
-    mongoose.connection.close(() => {
-      console.log('Closed Connection', mongoose.connection.readyState)
+app.get('/info', morgan('tiny'), (request, response) => {
+  connect().then(() => {
+    const length = Note.find({}).then((res) => {
+      mongoose.connection.close(() => {
+        console.log('Closed Connection', mongoose.connection.readyState)
+      })
+      return res
     })
-    return res
-  })
-  const date = new Date(Date.now()).toUTCString()
-  response.send(
-    `<h2>Phonebook has info for ${
-      (await length).length
-    } people</h2> <h2>${date}</h2>`
-  )
-})
-
-app.get('/api/persons', morgan('tiny'), async (request, response) => {
-  await connect()
-  Note.find({}).then((res) => {
-    response.json(res)
-    mongoose.connection.close(() => {
-      console.log('Closed Connection', mongoose.connection.readyState)
-    })
+    const date = new Date(Date.now()).toUTCString()
+    response.send(
+      `<h2>Phonebook has info for ${length.length} people</h2> <h2>${date}</h2>`
+    )
   })
 })
 
-app.get('/api/persons/:id', morgan('tiny'), async (request, response, next) => {
-  await connect()
-  const id = request.params.id
-  Note.findById(id)
-    .then((res) => {
+app.get('/api/persons', morgan('tiny'), (request, response) => {
+  connect().then(() => {
+    Note.find({}).then((res) => {
       response.json(res)
       mongoose.connection.close(() => {
         console.log('Closed Connection', mongoose.connection.readyState)
       })
     })
-    .catch((err) => {
-      next(err)
-    })
+  })
 })
 
-app.delete(
-  '/api/persons/:id',
-  morgan('tiny'),
-  async (request, response, next) => {
-    await connect()
+app.get('/api/persons/:id', morgan('tiny'), (request, response, next) => {
+  connect().then(() => {
     const id = request.params.id
-    Note.findByIdAndDelete(id)
+    Note.findById(id)
       .then((res) => {
         response.json(res)
         mongoose.connection.close(() => {
           console.log('Closed Connection', mongoose.connection.readyState)
         })
       })
+      .catch((err) => {
+        next(err)
+      })
+  })
+})
+
+app.delete('/api/persons/:id', morgan('tiny'), (request, response, next) => {
+  connect().then(() => {
+    const id = request.params.id
+    Note.findByIdAndDelete(id)
+      .then((res) => {
+        response.json(res).end()
+        mongoose.connection.close(() => {
+          console.log('Closed Connection', mongoose.connection.readyState)
+        })
+      })
       .catch((err) => next(err))
-  }
-)
+  })
+})
 
 app.post(
   '/api/persons',
@@ -88,35 +86,44 @@ app.post(
       tokens.content(req, res)
     ].join(' ')
   }),
-  async (request, response) => {
-    await connect()
-    const note = new Note(request.body)
-    note
-      .save()
-      .then((res) => {
-        response.json(res)
+  (request, response) => {
+    connect().then(() => {
+      const note = new Note(request.body)
+      if (!note.number) {
+        response.status(400).end()
+      } else {
+        note
+          .save()
+          .then((res) => {
+            response.json(res)
+            mongoose.connection.close(() => {
+              console.log('Closed Connection', mongoose.connection.readyState)
+            })
+          })
+          .catch((err) => console.log(err))
+      }
+    })
+  }
+)
+
+app.put('/api/persons/:id', (request, response, next) => {
+  connect().then(() => {
+    const id = request.params.id
+    const note = request.body
+    const newNoteInfo = {
+      name: note.name,
+      number: note.number
+    }
+    Note.findByIdAndUpdate(id, newNoteInfo, { new: true })
+      .then((result) => {
+        console.log('Actualizado')
+        response.json(result).end()
         mongoose.connection.close(() => {
           console.log('Closed Connection', mongoose.connection.readyState)
         })
       })
-      .catch((err) => console.log(err))
-  }
-)
-
-app.put('/api/persons/:id', async (request, response, next) => {
-  await connect()
-  const id = request.params.id
-  const note = request.body
-  const newNoteInfo = {
-    name: note.name,
-    number: note.number
-  }
-  Note.findByIdAndUpdate(id, newNoteInfo, { new: true })
-    .then((result) => {
-      console.log('Actualizado')
-      response.json(result).end()
-    })
-    .catch((err) => next(err))
+      .catch((err) => next(err))
+  })
 })
 
 app.use(idMalformed)
@@ -124,6 +131,8 @@ app.use(idMalformed)
 app.use(notFoundEndpoint)
 
 const PORT = process.env.PORT || 3001
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
 })
+
+module.exports = { app, server }
